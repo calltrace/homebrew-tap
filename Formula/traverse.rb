@@ -9,7 +9,7 @@ class Traverse < Formula
   on_macos do
     if Hardware::CPU.arm?
       url "https://github.com/calltrace/traverse/releases/download/v#{version}/traverse-macos-arm64.tar.gz"
-      sha256 "784282cc2ccfe07dc50671bbc1ea8ef57d83de02e49fcd23bd8e423f041cda7d"
+      sha256 "30cbe29a3bc418ea1d12a3ae7e6b6edbd8124d257b6cd05d3489ec7e2896c3cf"
     else
       url "https://github.com/calltrace/traverse/releases/download/v#{version}/traverse-macos-amd64.tar.gz"
       sha256 "6bde3109db57d70ec0ecf84133853a5ce22a5b3b88f8d4fc4e4f6315d06619ec"
