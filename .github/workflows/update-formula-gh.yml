@@ -1,0 +1,127 @@
+name: Update Formula (GH CLI)
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Traverse version to update (e.g., 0.1.2)'
+        required: true
+        type: string
+  repository_dispatch:
+    types: [traverse-release]
+
+jobs:
+  update-formula:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout tap repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+        
+      - name: Determine version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+            VERSION="${{ github.event.client_payload.version }}"
+          else
+            VERSION="${{ github.event.inputs.version }}"
+          fi
+          # Remove 'v' prefix if present
+          VERSION="${VERSION#v}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          
+      - name: Wait for release assets
+        run: |
+          echo "Waiting for release assets to be available..."
+          VERSION="${{ steps.version.outputs.version }}"
+          RELEASE_URL="https://github.com/calltrace/traverse/releases/download/v${VERSION}/traverse-macos-arm64.tar.gz"
+          
+          # Wait up to 5 minutes for assets to be available
+          for i in {1..30}; do
+            if curl -s -f -I "$RELEASE_URL" > /dev/null 2>&1; then
+              echo "Release assets are available"
+              break
+            fi
+            echo "Waiting for release assets... (attempt $i/30)"
+            sleep 10
+          done
+          
+      - name: Calculate SHA256 hashes
+        id: sha256
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          RELEASE_URL="https://github.com/calltrace/traverse/releases/download/v${VERSION}"
+          
+          # Function to get SHA256
+          get_sha256() {
+            local url="$1"
+            curl -L -s "$url" | sha256sum | cut -d' ' -f1
+          }
+          
+          echo "Calculating SHA256 hashes for version ${VERSION}..."
+          
+          SHA_MACOS_ARM64=$(get_sha256 "${RELEASE_URL}/traverse-macos-arm64.tar.gz")
+          SHA_MACOS_AMD64=$(get_sha256 "${RELEASE_URL}/traverse-macos-amd64.tar.gz")
+          SHA_LINUX_AMD64=$(get_sha256 "${RELEASE_URL}/traverse-linux-amd64.tar.gz")
+          
+          echo "sha_macos_arm64=$SHA_MACOS_ARM64" >> $GITHUB_OUTPUT
+          echo "sha_macos_amd64=$SHA_MACOS_AMD64" >> $GITHUB_OUTPUT
+          echo "sha_linux_amd64=$SHA_LINUX_AMD64" >> $GITHUB_OUTPUT
+          
+      - name: Update formula
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          FORMULA_PATH="Formula/traverse.rb"
+          
+          # Update version
+          sed -i "s/version \".*\"/version \"${VERSION}\"/" "$FORMULA_PATH"
+          
+          # Update SHA256 hashes
+          # First occurrence - macOS ARM64
+          sed -i "0,/sha256 \"[a-f0-9]\{64\}\"/s//sha256 \"${{ steps.sha256.outputs.sha_macos_arm64 }}\"/" "$FORMULA_PATH"
+          # Second occurrence - macOS AMD64  
+          sed -i "0,/sha256 \"[a-f0-9]\{64\}\"/s//sha256 \"${{ steps.sha256.outputs.sha_macos_amd64 }}\"/" "$FORMULA_PATH"
+          # Third occurrence - Linux AMD64
+          sed -i "0,/sha256 \"[a-f0-9]\{64\}\"/s//sha256 \"${{ steps.sha256.outputs.sha_linux_amd64 }}\"/" "$FORMULA_PATH"
+          
+      - name: Create PR with gh CLI
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          BRANCH="update-v${VERSION}-gh"
+          
+          # Configure git
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Create and switch to new branch
+          git checkout -b "$BRANCH"
+          
+          # Commit changes
+          git add Formula/traverse.rb
+          git commit -m "Update formula for v${VERSION}"
+          
+          # Push branch
+          git push origin "$BRANCH"
+          
+          # Create PR using gh CLI
+          gh pr create \
+            --title "Update formula for v${VERSION}" \
+            --body "Updates the Traverse formula for version ${VERSION}.
+          
+## Changes
+- Updated version to ${VERSION}
+- Updated SHA256 hashes for all platforms:
+  - macOS ARM64: \`${{ steps.sha256.outputs.sha_macos_arm64 }}\`
+  - macOS AMD64: \`${{ steps.sha256.outputs.sha_macos_amd64 }}\`  
+  - Linux AMD64: \`${{ steps.sha256.outputs.sha_linux_amd64 }}\`
+
+## Testing
+After merging, users can upgrade with:
+\`\`\`bash
+brew upgrade traverse
+\`\`\`" \
+            --base main \
+            --head "$BRANCH"
