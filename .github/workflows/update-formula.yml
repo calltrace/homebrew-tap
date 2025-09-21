@@ -106,3 +106,22 @@ jobs:
             ```
           branch: update-v${{ steps.version.outputs.version }}
           delete-branch: true
+          
+      - name: Enable auto-merge
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Wait a moment for PR to be fully created
+          sleep 5
+          
+          # Find the PR number
+          PR_NUMBER=$(gh pr list --head update-v${{ steps.version.outputs.version }} --json number --jq '.[0].number')
+          
+          if [ -n "$PR_NUMBER" ]; then
+            echo "Enabling auto-merge for PR #$PR_NUMBER"
+            gh pr merge "$PR_NUMBER" --auto --squash --delete-branch
+            echo "Auto-merge enabled. PR will merge automatically when checks pass."
+          else
+            echo "Could not find PR to enable auto-merge"
+          fi
