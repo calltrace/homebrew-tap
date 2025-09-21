@@ -1,0 +1,50 @@
+name: Test Formula
+
+on:
+  pull_request:
+    paths:
+      - 'Formula/**.rb'
+  push:
+    branches:
+      - main
+    paths:
+      - 'Formula/**.rb'
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Set up Homebrew
+        uses: Homebrew/actions/setup-homebrew@master
+        
+      - name: Test formula syntax
+        run: |
+          brew style --formula Formula/traverse.rb
+          
+      - name: Test formula installation
+        run: |
+          # Add this tap
+          brew tap calltrace/tap "$(pwd)"
+          
+          # Install formula
+          brew install --verbose calltrace/tap/traverse
+          
+          # Test that binaries work
+          sol2cg --version
+          sol2test --version
+          sol2bnd --version
+          sol-storage-analyzer --version
+          storage-trace --version
+          
+          # Run formula test
+          brew test traverse
+          
+      - name: Audit formula
+        run: |
+          brew audit --strict Formula/traverse.rb || true
