@@ -3,13 +3,13 @@
 class Traverse < Formula
   desc "Solidity code analysis, visualization, and test generation tools"
   homepage "https://github.com/calltrace/traverse"
-  version "0.1.3"
+  version "0.1.4"
   license "MIT"
 
   on_macos do
     if Hardware::CPU.arm?
       url "https://github.com/calltrace/traverse/releases/download/v#{version}/traverse-macos-arm64.tar.gz"
-      sha256 "0914daf0dc4097434fa5ba006f0b8e03cd8245fe3d245d48dce1fc97feac219f"
+      sha256 "da223c2b68268f4b0969827146f3a589cb9e966d18e01f1e5707f1adc93bbed6"
     else
       url "https://github.com/calltrace/traverse/releases/download/v#{version}/traverse-macos-amd64.tar.gz"
       sha256 "6bde3109db57d70ec0ecf84133853a5ce22a5b3b88f8d4fc4e4f6315d06619ec"
